@@ -63,7 +63,8 @@ function movie_recs(movie_title, movie_id, my_api_key) {
         get_movie_details(movie_id, my_api_key, arr, movie_title);
       }
     },
-    error: function() {
+    error: function(e) {
+      console.log(e);
       alert("Error fetching recommendations");
       $("#loader").delay(500).fadeOut();
     },
