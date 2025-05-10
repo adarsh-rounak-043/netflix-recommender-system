@@ -8,44 +8,51 @@ import bs4 as bs
 import pickle
 import requests
 import os
+import sys
 
-# load the nlp model and tfidf vectorizer from disk
-filename = 'nlp_model.pkl'
+# Optional debug
+print("Running on Python:", sys.version)
+
+# Setup base directory for consistent path usage
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Load NLP model and vectorizer
+filename = os.path.join(BASE_DIR, 'nlp_model.pkl')
 clf = pickle.load(open(filename, 'rb'))
-vectorizer = pickle.load(open('tranform.pkl','rb'))
+vectorizer = pickle.load(open(os.path.join(BASE_DIR, 'tranform.pkl'), 'rb'))
+
+# Declare globals
+data = None
+similarity = None
 
 def create_similarity():
-    data = pd.read_csv('main_data.csv')
+    data = pd.read_csv(os.path.join(BASE_DIR, 'main_data.csv'))
     cv = CountVectorizer()
     count_matrix = cv.fit_transform(data['comb'])
     similarity = cosine_similarity(count_matrix)
     return data, similarity
 
 def rcmd(m):
+    global data, similarity
     m = m.lower()
-    try:
-        data.head()
-        similarity.shape
-    except:
+    if data is None or similarity is None:
         data, similarity = create_similarity()
     if m not in data['movie_title'].unique():
-        return('Sorry! try another movie name')
+        return 'Sorry! try another movie name'
     else:
-        i = data.loc[data['movie_title']==m].index[0]
+        i = data.loc[data['movie_title'] == m].index[0]
         lst = list(enumerate(similarity[i]))
-        lst = sorted(lst, key=lambda x:x[1], reverse=True)
-        lst = lst[1:11]
-        l = [data['movie_title'][lst[i][0]] for i in range(len(lst))]
-        return l
+        lst = sorted(lst, key=lambda x: x[1], reverse=True)[1:11]
+        return [data['movie_title'][x[0]] for x in lst]
 
 def convert_to_list(my_list):
     my_list = my_list.split('","')
-    my_list[0] = my_list[0].replace('["','')
-    my_list[-1] = my_list[-1].replace('"]','')
+    my_list[0] = my_list[0].replace('["', '')
+    my_list[-1] = my_list[-1].replace('"]', '')
     return my_list
 
 def get_suggestions():
-    data = pd.read_csv('main_data.csv')
+    data = pd.read_csv(os.path.join(BASE_DIR, 'main_data.csv'))
     return list(data['movie_title'].str.capitalize())
 
 # Flask App
@@ -58,14 +65,13 @@ def home():
     return render_template('home.html', suggestions=suggestions, api_key=os.getenv("API_KEY"))
 
 @app.route("/similarity", methods=["POST"])
-def similarity():
+def similarity_route():
     movie = request.form['name']
     rc = rcmd(movie)
     if isinstance(rc, str):
         return rc
     else:
-        m_str = "---".join(rc)
-        return m_str
+        return "---".join(rc)
 
 @app.route("/recommend", methods=["POST"])
 def recommend():
@@ -114,10 +120,9 @@ def recommend():
     url = f'https://www.imdb.com/title/{imdb_id}/reviews?ref_=tt_ov_ql_2'
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'}
     response = requests.get(url, headers=headers)
-    sauce = response.text
-
-    soup = bs.BeautifulSoup(sauce, 'lxml')
+    soup = bs.BeautifulSoup(response.text, 'lxml')
     soup_result = soup.find_all('div', class_="ipc-html-content-inner-div")
+
     reviews_list = []
     reviews_status = []
 
@@ -131,10 +136,11 @@ def recommend():
 
     movie_reviews = {reviews_list[i]: reviews_status[i] for i in range(len(reviews_list))}
 
-    return render_template('recommend.html', title=title, poster=poster, overview=overview, vote_average=vote_average,
-                           vote_count=vote_count, release_date=release_date, runtime=runtime, status=status,
-                           genres=genres, movie_cards=movie_cards, reviews=movie_reviews, casts=casts,
-                           cast_details=cast_details)
+    return render_template('recommend.html', title=title, poster=poster, overview=overview,
+                           vote_average=vote_average, vote_count=vote_count,
+                           release_date=release_date, runtime=runtime, status=status,
+                           genres=genres, movie_cards=movie_cards, reviews=movie_reviews,
+                           casts=casts, cast_details=cast_details)
 
 if __name__ == '__main__':
     app.run()
