@@ -137,4 +137,4 @@ def recommend():
                            cast_details=cast_details)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
